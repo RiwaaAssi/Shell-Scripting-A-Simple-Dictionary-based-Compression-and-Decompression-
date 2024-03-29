@@ -1,0 +1,316 @@
+##################################################### Compressed Operation ####################################################
+comp() {
+echo "-----------------------------------------------------------------"
+echo "Welcome to Compression Option"
+if [ -e new_compressed.txt ];then
+rm new_compressed.txt
+touch new_compressed.txt
+else
+touch new_compressed.txt
+fi
+while [ "1" = "1" ]
+do
+echo "Enter the path of the file to be Compressed "
+read path
+if [ -e "$path" ]
+then
+break
+else
+echo
+echo "The file does not exist, Please try again"
+fi
+done
+echo
+
+dec="$1"
+if [ ! -s "$dec" ];then
+count=-1
+else
+count=$(tail -1 "$dec" | cut -d' ' -f1)
+fi
+word=""
+num_of_lines=$(wc -l "$path" | cut -d' ' -f1)
+current_line=0
+
+############################ Comperessed Loop ##################
+while IFS= read -r line; do
+echo  $line
+    current_line=$((current_line+1))
+    char_index=0
+    line_length=${#line}
+
+########################### Char by Char Loop ##################   
+for (( char_index = 0; char_index < line_length; char_index++ )); do
+    char="${line:$char_index:1}"
+
+if [[ "$char" =~ [[:alpha:]] ]]; then
+word="$word$char"
+
+if [ $((char_index+1)) -eq "$line_length" ];then
+
+if [[ "$word" =~ [[:alpha:]] ]];then
+    
+    code=$(grep -w "$word" "$dec" | cut -d' ' -f1)
+        
+    if [ -n "$code" ]; then
+       printf "$code\n" >> new_compressed.txt
+       echo "$code matches $word"
+       word=""
+    fi
+    
+    if [ -z "$code" ]; then
+      count=$((count+1)) 
+      code=$(printf "0x%04X\n" "$count")
+      printf "0x%04X\n" "$count" >> new_compressed.txt
+      printf "0x%04X matches $word \n" "$count"
+      printf "0x%04X $word\n" "$count" >> "$dec"
+      word=""
+    fi
+  fi
+fi  
+else
+    ############################ word be concatenatd #####################################
+  if [[ "$word" =~ [[:alpha:]] ]];then
+      
+      word_code=$(grep -w "$word" "$dec" | cut -d' ' -f1)
+ 
+    if [ -n "$word_code" ]; then
+        printf "$word_code\n" >> new_compressed.txt
+        echo "$word_code matches $word"
+       word=""
+    fi
+    
+    if [ -z "$word_code" ]; then
+      count=$((count+1)) 
+      word_code=$(printf "0x%04X\n" "$count")
+      printf "0x%04X\n" "$count" >> new_compressed.txt
+      printf "0x%04X matches $word\n" "$count"
+      printf "0x%04X $word\n" "$count" >> "$dec"
+      word=""
+    fi
+  fi
+    ############################ char stoped the concatenation ########################## 
+    
+    
+    if [ "$char" = " " ];then
+         code=$(grep -w "Space" "$dec" | cut -d' ' -f1) 
+           
+         if [ -z "$code" ];then
+             count=$((count+1))  
+             printf "0x%04X\n" "$count" >> new_compressed.txt
+             printf "0x%04X matches Space\n" "$count" 
+             printf "0x%04X Space\n" "$count" >> "$dec"
+         else
+             printf "$code\n" >> new_compressed.txt
+             echo "$code matches Space" 
+           fi
+      
+             
+     else
+           char1="\\$char"
+           code=$(grep -w "$char1" "$dec" | cut -d' ' -f1)
+           
+     if [ -n "$code" ]; then
+           printf "$code\n" >> new_compressed.txt
+           echo "$code matches $char"
+      
+     else
+          count=$((count+1))  
+           printf "0x%04X\n" "$count" >> new_compressed.txt
+           printf "0x%04X matches $char\n" "$count"
+           printf "0x%04X $char\n" "$count" >> "$dec"
+       fi
+    fi
+fi
+
+   done
+   
+if [ "$current_line" -lt "$num_of_lines" ];then
+      code=$(grep -w '\\n' "$dec" | cut -d' ' -f1)
+      if [ -n "$code" ]; then 
+           printf "$code\n" >> new_compressed.txt
+           echo "$code matches \n"
+       else
+           count=$((count+1)) 
+           printf "0x%04X\n" >> new_compressed.txt
+           printf "0x%04X matches" "$count"
+           echo " \n"
+           printf "0x%04X" "$count" >> "$dec"
+           echo " \n" >> "$dec"
+       fi     
+fi
+word=""
+
+done < "$path"
+
+echo "========================================= Dictionary ===================================="
+cat "$dec"
+           
+ ############################ Printing the Compressed File ##########################            
+echo "-----------------------------------------------------------------------------------"
+echo "Your comprssed file is:"
+cat new_compressed.txt
+echo "-----------------------------------------------------------------------------------"
+############################ Size Calculation ##########################  
+
+num_char=$(wc -c "$path" | cut -d' ' -f1)
+un_lines=$(wc -l "$path" | cut -d' ' -f1)
+new_line_char=$((un_lines-1))
+num_char=$((num_char-new-new_line_char))
+#un_size=$(( $(("$num_char"-1)) * 16))
+#un_size_byte=$(( $(("$num_char"-1)) * 2))
+un_size=$(("$num_char" * 16))
+un_size_byte=$(("$num_char" * 2))
+
+printf "The uncompressed file size = Number of characters’ x 16 (size of the Unicode)\n"
+printf "                           = %d * 16\n" "$num_char"
+printf "                           = %d bit\n" "$un_size" 
+printf "                           = %d bytes\n" "$un_size_byte"
+echo
+
+com_line=$(wc -l new_compressed.txt | cut -d' ' -f1)
+com_size=$(($(wc -l new_compressed.txt | cut -d' ' -f1) * 16))
+
+com_size_byte=$(("$com_line"* 2))
+printf "The compressed file size = Number of codes x 16 (code size)\n"
+printf "                         = %d * 16\n" "$com_line"
+printf "                         = %d bit\n" "$com_size" 
+printf "                         = %d bytes\n" "$com_size_byte"
+echo
+#final=$((un_size/ com_size))
+result=$(awk "BEGIN { printf \"%.3f\", $un_size / $com_size }")
+printf "File Compression Ratio = uncompressed file size / compressed file size\n"
+printf "                       = %d / %d\n" "$un_size" "$com_size"
+printf "                       = %0.3f\n" "$result"
+}
+##################################################### decompressed Operation ####################################################
+de() {
+echo "-----------------------------------------------------------------"
+dec="$1"
+if [ -z "$dec" ];then
+dec="$2"
+fi
+
+echo "Welcome to Decompression Option"
+if [ -e new_decompressed.txt ];then
+rm new_decompressed.txt
+touch new_decompressed.txt
+else
+touch new_decompressed.txt
+fi
+
+while [ "1" = "1" ]
+do
+echo "Enter the path of the Compressed file "
+read path
+if [ -f "$path" ]
+then
+break
+else
+echo
+echo "The file does not exist, Please try again"
+fi
+done
+
+
+while IFS= read -r line; do
+
+word=$(grep -w "$line" "$dec" | cut -d' ' -f2)
+
+if [ -z "$word" ];then
+    echo "Sorry, $line does not exist in your dictionary"
+    return
+else
+
+   if [ "$word" = "Space" ];then
+     echo "$line matches Space"
+     printf " " >> new_decompressed.txt
+  else
+     echo "$line matches $word"
+     printf "$word" >> new_decompressed.txt
+  fi
+fi
+done < "$path"
+
+echo "-----------------------------------------------------------"
+echo "Your paragraph is"
+cat new_decompressed.txt
+echo
+echo "-----------------------------------------------------------"
+}
+
+echo
+echo "Welcome to Dictionary Program!!"
+echo
+
+answer=""
+dicArray=()
+##################################################### Reading the Dictonary File ####################################################
+while [ "1" = "1" ]
+do
+read -p "Do you have a dictionary file? (yes/no)  " answer
+
+if [ "$answer" = "yes" ]; then
+  echo "What is the path of your file?"
+  read path
+
+if [ -f "$path" ]; then
+  while IFS= read -r line; do
+   dicArray+=("$line")
+  done < "$path"
+
+  break
+else
+echo
+echo "Sorry the file does not exist, Please try again" 
+echo
+continue
+fi
+
+elif [ "$answer" = "no" ]; then
+
+  if [ -e Dictionary.txt ];then
+    rm Dictionary.txt
+    touch Dictionary.txt
+    path=Dictionary.txt
+  else
+    touch Dictionary.txt
+    path=Dictionary.txt
+  fi
+echo
+echo "Dont Wory, We create an Empty Dictonary for you!"
+break
+
+else
+echo 
+echo "Invalid input, Please try again"
+echo
+continue
+
+fi
+done
+
+#################################################### Chooose the Option the User want ####################################################
+while [ "1" = "1" ]
+do
+echo
+echo "Please choose one of the menu"
+echo "c-compressed file"
+echo "d-decompressed file"
+echo "e-exit"
+read answer
+
+case "$answer" in
+"c" | "C" ) 
+           comp "$path"
+            ;;
+"d" | "D" ) 
+           de $dec $path
+           ;;
+"e" | "E") echo "Good Bye"
+           exit 0;;
+*) echo
+   echo "Please try again!"
+   continue;;
+esac
+done
